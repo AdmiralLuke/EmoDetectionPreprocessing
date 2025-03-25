@@ -1,0 +1,12 @@
+torch
+numpy
+matplotlib
+pandas
+video2numpy
+torchsummary
+prettytable
+seaborn
+einops
+scikit-learn
+vit_pytorch
+torchcam
