@@ -103,11 +103,9 @@ class VideoModel(nn.Module):
             self.optimizer.step()
             pred = output.detach()
             predictions = np.argmax(pred.cpu().numpy(), axis=1)
-    
-            # Umformen der One-Hot-Ziele zu Klassenindizes
+
             targets = np.argmax(target.cpu().numpy(), axis=1)
-    
-    # Vergleichen mit den tatsächlichen Klassen
+                
             correct_predictions = np.sum(predictions == targets)
             total_items += self.batch_size
             if i % 100 == 0:
@@ -115,7 +113,6 @@ class VideoModel(nn.Module):
                 print("Targs:",targets, flush=True)
                 print("corr_preds:", predictions == targets)
     
-    # Berechnen der Genauigkeit
             accuracy += correct_predictions
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc: {:.2f}%'.format(
                 self.epoch, i, len(self.data_loader),
@@ -161,6 +158,8 @@ class VideoModel(nn.Module):
     def validate(self):
         tmp_data_loader = video_loader.VideoLoader(1, folder="./sets/validation")
         num_classes = 7
+        total_items = 0
+        total_correct = 0
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         criterion = nn.CrossEntropyLoss()
         with torch.no_grad():
@@ -173,8 +172,9 @@ class VideoModel(nn.Module):
                 predictions = np.argmax(pred.cpu().numpy(), axis=1)
                 targets = np.argmax(target.cpu().numpy(), axis=1)
                 correct_predictions = np.sum(predictions == targets)
-                total_items = 1
-                accuracy = correct_predictions
+                total_items += 1
+                total_correct += correct_predictions
+                accuracy = (correct_predictions / total_items) * 100
                 print('Validation Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc: {:.2f}%'.format(
                     self.epoch, i, len(tmp_data_loader),
                     100. * i / len(tmp_data_loader), loss.item(), (accuracy.item() / total_items) * 100), flush
@@ -191,7 +191,7 @@ class VideoModel(nn.Module):
             all_logits =  []
             num_classes = 7
 
-            # Iteriere über den Dateniterator, um Eingabedaten und Labels zu erhalten
+            
             for i, batch in enumerate(self.data_loader):
                 inputs, labels = batch
                 inputs, labels = inputs.to(device), labels.to(device)
@@ -203,12 +203,11 @@ class VideoModel(nn.Module):
                 print(i, "/", 1000, flush= True)
                 all_logits.extend(logits.cpu())
 
-            # Konvertiere Listen in NumPy-Arrays
+            
             all_labels = np.array(all_labels)
             all_predictions = np.array(all_predictions)
             all_logits = np.array(all_logits)
 
-            # Berechne Präzision und Recall für die Precision-Recall-Kurve pro Klasse
             plt.figure()
             lookup = ["anger", "happy", "neutral", "sadness", "disgust", "fear", "surprise"]
             for j in range(num_classes):
@@ -225,7 +224,7 @@ class VideoModel(nn.Module):
             plt.show()
             num_classes = 7
 
-            # Erstellen und Plotten der Verwechslungs-Matrix
+            
             conf_matrix = confusion_matrix(all_labels, all_predictions)
             plt.figure(figsize=(10, 8))
             sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=lookup, yticklabels=lookup)
@@ -235,7 +234,7 @@ class VideoModel(nn.Module):
             plt.savefig("plots/meld_video_t_hm.svg")
             plt.show()
 
-            # Berechne und drucke die Metriken
+            # Berechne Metriken
             precision_score_value = precision_score(all_labels, all_predictions, average='weighted')
             accuracy_score_value = accuracy_score(all_labels, all_predictions)
             f1_score_value = f1_score(all_labels, all_predictions, average='weighted')
@@ -267,7 +266,6 @@ class VideoModel(nn.Module):
         self.epoch = snapshot["EPOCHS"]
     
 def create_activation_map(model, i):
-    # Video-Daten abrufen (Batch-Size = 1)
     tmp_data_loader = video_loader.VideoLoader(1)
     data, input_tensor = None, None
     for j, (data, target) in enumerate(tmp_data_loader):
@@ -282,7 +280,7 @@ def create_activation_map(model, i):
         with torch.no_grad():
             tokens = model.v.to_patch_embedding(x)  # (1, Tokens, Dim)
             
-            # Forward-Pass durch den Transformer
+            # Forward-Pass
             for attn, ff in model.v.transformer.layers:
                 tokens = attn(tokens) + tokens
                 tokens = ff(tokens) + tokens
@@ -305,18 +303,18 @@ def create_activation_map(model, i):
     attn_map_avg = extract_attention(model, input_tensor)
     feature_map = extract_patch_embeddings(model, input_tensor)
 
-    # 🖼️ Original-Frame extrahieren (z.B. Frame 5 aus 30)
+    
     frame_index = 5
     original_frame = input_tensor[0, :, frame_index, :, :].reshape((200, 200, 3)).cpu().numpy()  # (200, 200, 3)
 
-    # 🔥 Heatmap vorbereiten
+
     print(f"Feature Map Shape: {feature_map.shape}", flush = "True")
     heatmap = feature_map[frame_index]  # Shape: (Num_Patches_H, Num_Patches_W)
     heatmap = torch.nn.functional.interpolate(
         heatmap.unsqueeze(0).unsqueeze(0), size=(200, 200), mode="bilinear", align_corners=False
     ).squeeze().cpu().numpy()
 
-    # 🎨 Visualisierung: Originalbild + Heatmap
+    # Originalbild + Heatmap
     plt.figure(figsize=(12, 6))
 
     # Normierung für richtige Farben
