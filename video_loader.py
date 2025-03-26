@@ -17,7 +17,7 @@ class VideoLoader(torch.utils.data.Dataset):
         self.data = np.array([])
         self.target = np.array([])
         self.len = 9988
-        self.annos = pd.read_csv("train_sent_emo.csv")["Emotion"]
+        # self.annos = pd.read_csv("train_sent_emo.csv")["Emotion"]
         self.test = False
         self.batch_size = batch_size
         self.rng = np.random.default_rng()
